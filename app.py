@@ -207,20 +207,25 @@ def merge_pdf_list(ordered_pdf_streams):
     merger.close()
     return output.getvalue()
 
-# Helper function for HTML Base64 PDF Preview
-def render_pdf_preview_iframe(pdf_bytes, height=450):
-    base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-    pdf_display = f'''
-    <iframe 
-        src="data:application/pdf;base64,{base64_pdf}#toolbar=1&navpanes=0&scrollbar=1" 
-        width="100%" 
-        height="{height}px" 
-        type="application/pdf"
-        style="border-radius: 12px; border: 1px solid #CBD5E1; background-color: #FFFFFF;"
-    >
-    </iframe>
-    '''
-    st.markdown(pdf_display, unsafe_allow_html=True)
+import fitz
+
+# Helper function for Image-Based PDF Preview (100% immune to browser iframe blocking)
+def render_pdf_preview_images(pdf_bytes):
+    try:
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        total_pages = len(doc)
+        
+        for page_num in range(total_pages):
+            page = doc.load_page(page_num)
+            pix = page.get_pixmap(dpi=120)
+            img_bytes = pix.tobytes("png")
+            st.image(
+                img_bytes, 
+                caption=f"Halaman {page_num + 1} dari {total_pages}", 
+                use_container_width=True
+            )
+    except Exception as e:
+        st.error(f"Gagal memuat preview: {e}")
 
 # Session State Initialization
 if 'num_rows' not in st.session_state:
@@ -374,7 +379,7 @@ for i in range(st.session_state.num_rows):
             with preview_col:
                 st.markdown("##### 👁️ Preview Hasil Gabungan (Live)")
                 with st.expander("Buka / Tutup Interactive PDF Viewer", expanded=True):
-                    render_pdf_preview_iframe(merged_data, height=380)
+                    render_pdf_preview_images(merged_data)
 
             # Collect for ZIP download
             processed_files.append({
